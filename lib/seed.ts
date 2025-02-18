@@ -10,7 +10,7 @@ function parseDate(dateString: string): string {
     const day = parts[0].padStart(2, '0');
     const month = parts[1].padStart(2, '0');
     const year = parts[2];
-    return `${year}-${month}-${day}`;
+    return `${year}-${day}-${month}`;
   }
   console.warn(`Could not parse date: ${dateString}`);
   throw Error();
@@ -38,14 +38,15 @@ export async function seed() {
   await new Promise((resolve, reject) => {
     fs.createReadStream(csvFilePath)
       .pipe(csv())
-      .on('data', (data) => results.push(data))
+      .on('data', (data) => {  return results.push(data) })
       .on('end', resolve)
       .on('error', reject);
   });
 
   for (const row of results) {
+    console.log("riow",row)
     const formattedDate = parseDate(row['Date Joined']);
-
+    console.log("parsed date", formattedDate)
     await sql`
       INSERT INTO unicorns (company, valuation, date_joined, country, city, industry, select_investors)
       VALUES (
