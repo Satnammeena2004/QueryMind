@@ -1,8 +1,10 @@
+"use client";
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { QueryWithTooltips } from "./ui/query-with-tooltips";
 import { QueryExplanation } from "@/lib/types";
 import { CircleHelp, Loader2 } from "lucide-react";
+import { explainQuery } from "@/app/actions";
 
 export const QueryViewer = ({
   activeQuery,
@@ -14,24 +16,32 @@ export const QueryViewer = ({
   const activeQueryCutoff = 100;
 
   const [loadingExplanation, setLoadingExplanation] = useState(false);
-  const [queryExplanations, setQueryExplanations] = useState<QueryExplanation[] | null>();
-  const [queryExpanded, setQueryExpanded] = useState(activeQuery.length > activeQueryCutoff);
+  const [queryExplanations, setQueryExplanations] = useState<
+    QueryExplanation[] | null
+  >();
+  const [queryExpanded, setQueryExpanded] = useState(
+    activeQuery.length > activeQueryCutoff
+  );
 
   const handleExplainQuery = async () => {
     setQueryExpanded(true);
     setLoadingExplanation(true);
 
     // TODO: generate explanation and update state
-
+    const explanations = await explainQuery(inputValue, activeQuery);
+    // console.log("explained", explanations);
+    setQueryExplanations(explanations);
     setLoadingExplanation(false);
   };
 
   if (activeQuery.length === 0) return null;
 
   return (
-    <div className="mb-4 relative group">
+    <div className="mb-4 relative group ">
       <div
-        className={`bg-muted rounded-md p-4 ${queryExpanded ? "" : "text-muted-foreground"}`}
+        className={`bg-muted rounded-2xl p-8  dark:bg-zinc-900 dark:bg-gradient-to-t from-transparent  to-black/20  ${
+          queryExpanded ? "" : "text-muted-foreground"
+        }`}
       >
         <div className="font-mono text-sm">
           {queryExpanded ? (

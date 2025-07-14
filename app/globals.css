@@ -8,8 +8,6 @@
   --background-end-rgb: 255, 255, 255;
 }
 
-
-
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -37,6 +35,11 @@
     --chart-3: 240 1% 58%;
     --chart-4: 240 1% 74%;
     --chart-5: 359 2% 90%;
+    --color-1: 0 100% 63%;
+    --color-2: 270 100% 63%;
+    --color-3: 210 100% 63%;
+    --color-4: 195 100% 63%;
+    --color-5: 90 100% 63%;
   }
 
   .dark {
@@ -64,9 +67,59 @@
     --chart-3: 240 1% 58%;
     --chart-4: 240 1% 42%;
     --chart-5: 240 2% 26%;
+    --color-1: 0 100% 63%;
+    --color-2: 270 100% 63%;
+    --color-3: 210 100% 63%;
+    --color-4: 195 100% 63%;
+    --color-5: 90 100% 63%;
   }
 }
 
+/* @keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-100% - var(--gap)));
+  }
+}
+
+@keyframes marquee-vertical {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(-100% - var(--gap)));
+  }
+}
+
+.marquee {
+  animation: marquee var(--duration) linear infinite;
+}
+
+.marquee-vertical {
+  animation: marquee-vertical var(--duration) linear infinite;
+} */
+
 body {
-    @apply bg-neutral-50 dark:bg-neutral-900;
+  @apply bg-neutral-50 dark:bg-neutral-900;
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

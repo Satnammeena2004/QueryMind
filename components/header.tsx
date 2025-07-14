@@ -1,36 +1,27 @@
-import { Moon, Sun } from "lucide-react";
-import { DeployButton } from "./deploy-button";
-import { Button } from "./ui/button";
-import { useTheme } from "next-themes";
+import { AuroraText } from "./magicui/aurora-text";
+import { ShinyButton } from "./magicui/shiny-button";
 
-export const Header = ({ handleClear }: { handleClear: () => void }) => {
-  const { theme, setTheme } = useTheme();
-
+export const Header = ({
+  handleClear,
+  tableName,
+}: {
+  handleClear: () => void;
+  tableName: string;
+}) => {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <h1
-        className="text-2xl sm:text-3xl font-bold text-foreground flex items-center cursor-pointer"
-        onClick={() => handleClear()}
-      >
-        Natural Language PostgreSQL
-      </h1>
-      <div className="flex items-center justify-center space-x-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+    <>
+      <div className="flex items-center justify-center mb-6 relative">
+        <h1
+          className="text-xl  sm:text-6xl font-bold text-center text-foreground flex items-center cursor-pointer text-nowrap"
+          onClick={() => handleClear()}
         >
-          {theme === "dark" ? (
-            <Moon className="h-5 w-5" />
-          ) : (
-            <Sun className="h-5 w-5" />
-          )}
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-        <div className="hidden sm:block">
-          <DeployButton />
-        </div>
+          Talk to{" "}
+          <AuroraText className="text-center text-4xl md:text-5xl mx-4">{tableName} </AuroraText>
+        </h1>
       </div>
-    </div>
+      {/* <Link href={"/unicorns_data"}>
+        <ShinyButton>Preview Table</ShinyButton>
+      </Link> */}
+    </>
   );
 };

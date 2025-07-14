@@ -40,7 +40,7 @@ export async function seed() {
       .pipe(csv())
       .on('data', (data) => {  return results.push(data) })
       .on('end', resolve)
-      .on('error', reject);
+      .on('error', reject)
   });
 
   for (const row of results) {

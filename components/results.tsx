@@ -20,6 +20,8 @@ export const Results = ({
   columns: string[];
   chartConfig: Config | null;
 }) => {
+  
+
   const formatColumnTitle = (title: string) => {
     return title
       .split("_")

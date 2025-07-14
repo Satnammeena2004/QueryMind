@@ -14,7 +14,7 @@ export function QueryWithTooltips({
   queryExplanations: QueryExplanation[];
 }) {
   const segments = segmentQuery(query, queryExplanations);
-
+  // console.log("segments: ", segments, query);
   return (
     <div className="font-mono bg-muted rounded-lg overflow-x-auto">
       {segments.map((segment, index) => (
@@ -27,7 +27,11 @@ export function QueryWithTooltips({
                     {segment.text}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" avoidCollisions={true}  className="max-w-xl font-sans">
+                <TooltipContent
+                  side="top"
+                  avoidCollisions={true}
+                  className="max-w-xl font-sans"
+                >
                   <p className="whitespace-normal">{segment.explanation}</p>
                 </TooltipContent>
               </Tooltip>
@@ -41,17 +45,20 @@ export function QueryWithTooltips({
   );
 }
 
-function segmentQuery(query: string, explanations: QueryExplanation[]): Array<{ text: string; explanation?: string }> {
+function segmentQuery(
+  query: string,
+  explanations: QueryExplanation[]
+): Array<{ text: string; explanation?: string }> {
   const segments: Array<{ text: string; explanation?: string }> = [];
   let lastIndex = 0;
 
   // Sort explanations by their position in the query
   const sortedExplanations = explanations
-    .map(exp => ({ ...exp, index: query.indexOf(exp.section) }))
-    .filter(exp => exp.index !== -1)
+    .map((exp) => ({ ...exp, index: query.indexOf(exp.section) }))
+    .filter((exp) => exp.index !== -1)
     .sort((a, b) => a.index - b.index);
 
-  sortedExplanations.forEach(exp => {
+  sortedExplanations.forEach((exp) => {
     if (exp.index > lastIndex) {
       // Add any text before the current explanation as a segment without explanation
       segments.push({ text: query.slice(lastIndex, exp.index) });

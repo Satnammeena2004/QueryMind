@@ -1,6 +1,7 @@
 import { Search as SearchIcon } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { string } from "zod";
 
 export const Search = ({
   handleSubmit,
@@ -8,12 +9,14 @@ export const Search = ({
   setInputValue,
   submitted,
   handleClear,
+  tableName,
 }: {
   handleSubmit: () => Promise<void>;
   inputValue: string;
   setInputValue: React.Dispatch<React.SetStateAction<string>>;
   submitted: boolean;
   handleClear: () => void;
+  tableName?:string
 }) => {
   return (
     <form
@@ -21,16 +24,16 @@ export const Search = ({
         e.preventDefault();
         await handleSubmit();
       }}
-      className="mb-6"
+      className="mb-6 my-20"
     >
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
         <div className="relative flex-grow">
           <Input
             type="text"
-            placeholder="Ask about startup unicorns..."
+            placeholder={`Ask about startup ${tableName}...`}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            className="pr-10 text-base"
+            className="pr-10 text-base dark:bg-neutral-800"
           />
           <SearchIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
         </div>
