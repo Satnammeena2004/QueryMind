@@ -23,32 +23,34 @@ export default async function Page() {
     <>
       <main className="flex flex-col justify-center items-center dark:bg-gradient-to-r dark:from-black dark:via-transparent dark:to-black">
         <AuthButton />
-        <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden rounded-lg dark:bg-gradient-to-t from-transparent  to-black/50 sm:p-14">
+        <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden rounded-lg dark:bg-gradient-to-t from-transparent to-black/50 sm:p-14">
           <Meteors number={30} />
           <h1 className="pointer-events-none whitespace-pre-wrap bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-center text-5xl sm:text-6xl font-semibold leading-none text-transparent dark:from-white dark:to-slate-900/20">
-            Talk to Your Data in <br />{" "}
-            <AuroraText className="font-semibold text-4xl sm:text-5xl">
-              Netural language
+            Talk to Your Data in <br />
+            {/* wrap & clamp font size */}
+            <AuroraText className="font-semibold text-4xl sm:text-5xl break-words">
+              Natural language
             </AuroraText>
           </h1>
-          <div className="flex gap-x-8 items-center my-12">
-            {/* <ShimmerAtomicButton/> */}
-            <Link href={"/own"}>
+          <div className="flex gap-x-4 sm:gap-x-8 items-center my-12">
+            <Link href="/own">
               <ShinyButton>Use Own Data</ShinyButton>
             </Link>
             <RainbowButtonDemo content="Explore" dark={false} />
           </div>
         </div>
-        <div className="my-4 w-full p-2  no-scrollbar">
+
+        {/* Section 1 */}
+        <div className="my-4 w-full p-2 no-scrollbar">
           <Section
-            className="min-h-60  w-full my-10 px-4 gap-x-3 py-10 sm:py-20 "
+            className="min-h-60 w-full my-10 px-4 gap-x-3 py-10 sm:py-20"
             type="t"
           >
-            <div className="">
-              <h1 className="pointer-events-none text-center whitespace-pre-wrap bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-6xl  sm:text-6xl font-semibold leading-none  dark:text-gray-300/80 ">
-                Write your query in <br />{" "}
+            <div>
+              <h1 className="pointer-events-none text-center whitespace-pre-wrap bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-5xl sm:text-6xl font-semibold leading-none dark:text-gray-300/80">
+                Write your query in <br />
                 <AuroraText
-                  className="text-4xl sm:text-5xl -translate-y-10 sm:translate-y-0"
+                  className="text-4xl sm:text-5xl  break-words"
                   colors={[
                     "#0EA5E9",
                     "#A21CAF",
@@ -66,25 +68,28 @@ export default async function Page() {
               </div>
             </div>
           </Section>
+
+          {/* Section 2 – Charts */}
           <Section
-            className="min-h-60  w-full my-10 px-4 gap-x-3 py-20 "
+            className="min-h-60 w-full my-10 px-4 gap-x-3 py-20"
             type="t"
           >
-            <div className="flex flex-col items-center justify-center ">
-              <h1 className="pointer-events-none  whitespace-pre-wrap bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-5xl  sm:text-6xl font-semibold leading-none  dark:text-gray-300 text-center my-16 ">
+            <div className="flex flex-col items-center justify-center">
+              <h1 className="pointer-events-none whitespace-pre-wrap bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-4xl sm:text-5xl md:text-6xl font-semibold leading-none dark:text-gray-300 text-center my-16">
                 Convert Your Query into Graph
               </h1>
-              <div className="flex flex-col">
+              <div className="flex flex-col w-full max-w-5xl">
                 <AnimatedShinyText className="inline-flex items-center justify-center px-4 py-1 transition ease-out hover:text-neutral-600 hover:duration-300 hover:dark:text-neutral-400 border rounded-full my-4 text-center">
-                  <span className="">
+                  <span>
                     ✨ Compare count of unicorns in SF and NY over time
                   </span>
                 </AnimatedShinyText>
 
+                {/* remove fixed w-96, rely on parent width */}
                 <div className="w-full">
                   {exampleResults?.map((result, i) => (
                     <ChartContainer
-                      className="w-96 sm:w-full px-4"
+                      className="w-full lg:w-3/4 lg:mx-auto px-1 sm:px-4" // tiny side padding
                       config={result.config}
                       key={i}
                     >
@@ -98,14 +103,17 @@ export default async function Page() {
               </div>
             </div>
           </Section>
+
+          {/* Section 3 – Query explanation */}
           <Section
-            className="min-h-60  w-full my-10 px-4 gap-x-3 py-20 "
+            className="min-h-60 w-full my-10 px-4 gap-x-3 py-20"
             type="t"
           >
-            <div className="flex flex-col items-center justify-center ">
-              <h1 className="pointer-events-none  whitespace-pre-wrap bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-5xl sm:text-6xl font-semibold leading-none  dark:text-gray-300 text-center my-20 ">
-                Exaplain Your{" "}
+            <div className="flex flex-col items-center justify-center">
+              <h1 className="pointer-events-none whitespace-pre-wrap bg-gradient-to-b from-black to-gray-300/80 bg-clip-text text-4xl sm:text-5xl md:text-6xl font-semibold leading-none dark:text-gray-300 text-center my-20">
+                Explain Your{" "}
                 <AuroraText
+                  className="text-4xl sm:text-5xl  break-words"
                   colors={[
                     "#E11D48",
                     "#9333EA",
@@ -118,7 +126,7 @@ export default async function Page() {
                   Query
                 </AuroraText>
               </h1>
-              <div className="flex flex-col">
+              <div className="flex flex-col w-full max-w-5xl">
                 <AnimatedShinyText className="inline-flex items-center justify-center px-4 py-1 transition ease-out hover:text-neutral-600 hover:duration-300 hover:dark:text-neutral-400 border rounded-full my-4 text-center">
                   <span>
                     ✨ Compare count of unicorns in SF and NY over time
@@ -133,9 +141,11 @@ export default async function Page() {
               </div>
             </div>
           </Section>
+
           <PricePlans />
         </div>
       </main>
+
       <footer>
         <SocialLinks />
       </footer>

@@ -147,7 +147,7 @@ export function AuroraText({
   return (
     <span
       ref={containerRef}
-      className={`relative inline-block align-middle ${className}`}
+      className={`relative inline-block w-full align-middle ${className} overflow-hidden`}
       style={{
         width: dimensions.width || "auto",
         height: dimensions.height || "auto",

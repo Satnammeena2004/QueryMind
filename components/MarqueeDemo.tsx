@@ -18,7 +18,7 @@ export function MarqueeDemo({ queries }: { queries: any[] }) {
           </>
         ))}
       </Marquee>
-      <Marquee reverse className="[--duration:20s]">
+      <Marquee pauseOnHover reverse className="[--duration:20s]">
         {secondRow.map((query) => (
           <>
             <AnimatedShinyText className="inline-flex sm:hidden items-center justify-center px-4 py-1 transition ease-out hover:text-neutral-600 hover:duration-300 hover:dark:text-neutral-400 border rounded-full my-4 text-center w-full text-nowrap">
