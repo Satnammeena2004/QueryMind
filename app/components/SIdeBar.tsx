@@ -1,7 +1,7 @@
 "use client";
 
 import { Home, List, ListCollapse } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import SideBarLinks, { LinkRow } from "./SideBarLinks";
 import { AnimatePresence, motion, VariantLabels } from "framer-motion";
 import { useSession } from "next-auth/react";
@@ -36,14 +36,36 @@ const Sidebar = ({ links }: { links: LinkRow[] }) => {
   const remainingCredits =
     parseInt(USER_FREE_CREDITS_LITMIT as string) - links.length;
   const [isCollapsed, setIsCollapse] = useState(true);
+
+  // Add ref for sidebar
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Auto-close sidebar on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target as Node)
+      ) {
+        setIsCollapse(false); // Auto-close when clicked outside
+      }
+    }
+    if (isCollapsed) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isCollapsed]);
+
   function handleCollapse() {
     setIsCollapse((is) => !is);
   }
 
-
   return (
     <AnimatePresence initial={false}>
       <motion.div
+        ref={sidebarRef}
         className={`${
           isCollapsed
             ? "border-r h-full min-w-64 overflow-y-scroll overflow-x-hidden"
@@ -73,7 +95,7 @@ const Sidebar = ({ links }: { links: LinkRow[] }) => {
               />
             )}
           </Button>
-          <Tooltip>
+          <Tooltip  >
             <TooltipTrigger>
               <Button
                 className="bg-transparent hover:bg-transparent"
@@ -85,8 +107,8 @@ const Sidebar = ({ links }: { links: LinkRow[] }) => {
                 </span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              <div className="flex flex-col text-xs">
+            <TooltipContent side="left" >
+              <div className="flex flex-col text-xs ">
                 {remainingCredits <= 0 ? (
                   <>
                     <p className="text-red-700">Alert !</p>

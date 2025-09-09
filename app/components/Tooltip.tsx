@@ -33,6 +33,10 @@ export function TooltipDemo({
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
   return (
     <div
+    onMouseDown={(e)=>{
+      e.stopPropagation();
+      e.preventDefault();
+    }}
       onClick={(e) => {
         e.stopPropagation();
         e.preventDefault();

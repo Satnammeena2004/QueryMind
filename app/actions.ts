@@ -443,7 +443,9 @@ export async function insertDataInOwnedTable(t_name: string) {
 
 export async function insertDataTable(insertQuery: string) {
   try {
-    const splittedArray = insertQuery
+    // Remove stray curly braces and whitespace
+    const cleanedQuery = insertQuery.replace(/[{}]/g, "").trim();
+    const splittedArray = cleanedQuery
       .replaceAll("`", "")
       .replaceAll('"', "")
       .split(";");
@@ -477,54 +479,43 @@ export const readFileAndGetSchema = async (fileContent: string | null) => {
       model: google("gemini-1.5-flash"),
       schema: sqlSchema,
       prompt: `
-      You are an assistant that analyzes JSON sample data and generates a MySQL schema with individual INSERT statements.
-      Sample Data :${fileContent}
+You are an assistant that analyzes JSON sample data and generates a Postgres schema with individual INSERT statements.
+Sample Data: ${fileContent}
 
 Your tasks:
- 1.Generate a single table schema, flattening nested fields into columns using underscore notation (e.g., address_city).
+1. Generate a single table schema, flattening nested fields into columns using underscore notation (e.g., address_city).
+2. If data contains arrays, store them as comma-separated strings in a VARCHAR column and insert them as such in the INSERT statements.
+3. If data contains nested objects, create separate columns for each nested field using underscore notation.
+4. Choose an appropriate table name based on the data content unless a table name ${t} is provided, in which case use that name exactly.
+5. Generate appropriate column types (VARCHAR, INT, DECIMAL, DATE) based on the data.
+6. Use DECIMAL for monetary values.
+7. Only infer DATE type if all values in the column follow an unambiguous YYYY-MM-DD format; otherwise use VARCHAR.
+8. Handle NULL values by allowing columns to be nullable when missing or NULL appears in data.
+9. Skip any rows that contain problematic data (e.g., unescaped quotes or invalid values that would break SQL) or are missing required fields — do not modify the data to fix issues.
+10. Remove backticks from string and date literals in INSERT statements; wrap string/date values in single quotes '...'.
 
- 2.If data contains arrays, store them as comma-separated strings in a VARCHAR column and insert them as such in the INSERT statements.
+11. Do NOT use backticks (\`) anywhere in the output.
+12. Generate one INSERT statement per data item (no batch inserts).
+13. Avoid line breaks in both createStatement and query strings — output them as single lines.
+14. For each VARCHAR column, set the length to the longest string found in the data for that column, rounded up to the nearest 10 (e.g., if the longest string is 57 characters, use VARCHAR(60)).
+15. Return the result in exact JSON format below, including the optional indexes field (empty if none are needed):
 
- 3.If data contains nested objects, create separate columns for each nested field using underscore notation.
-
- 4.Choose an appropriate table name based on the data content unless a table name ${t} is provided, in which case use that name exactly.
-
- 5.Generate appropriate column types (VARCHAR, INT, DECIMAL, DATE) based on the data
-
- 6.Use DECIMAL for monetary values.
-
- 7.Only infer DATE type if all values in the column follow an unambiguous YYYY-MM-DD format; otherwise use VARCHAR.
-
- 8.Handle NULL values by allowing columns to be nullable when missing or NULL appears in data.
-
- 9.Skip any rows that contain problematic data (e.g., unescaped quotes or invalid values that would break SQL) or are missing required fields — do not modify the data to fix issues.
-
- 10.Remove backticks from string and date literals in INSERT statements; wrap string/date values in single quotes '...'.
-
- 11.Backticks on identifiers (columns/table) are optional but recommended for reserved words.
-
- 12.Generate one INSERT statement per data item (no batch inserts).
-
- 13.Avoid line breaks in both createStatement and query strings — output them as single lines.
-
- 14.Return the result in exact JSON format below, including the optional indexes field (empty if none are needed):
- 15.Choose the right length for the data types according to file data , if the data is array of  string than merged all string and then choose lenght of the VARCHAR  . 
-
-  {
+{
   "schema": {
-  "tableName": "${t}",
-  "createStatement": "CREATE TABLE statement without line breaks",
+    "tableName": "${t}",
+    "createStatement": "CREATE TABLE statement without line breaks"
   },
-    "query": "All INSERT statements concatenated without newlines"
-  }
+  "query": "All INSERT statements concatenated without newlines"
+}
 
-  Important:
-
- 1.Validate that the schema matches all data keys consistently.
-  2.Use appropriate data types for production safety.
-  3.Strings and dates must be enclosed in single quotes('...') in the INSERT statements.
-  4.If a record contains problematic data that would cause an SQL syntax error, skip generating an   INSERT for that record instead of modifying it.
-    `,
+Important:
+- Validate that the schema matches all data keys consistently.
+- Use appropriate data types for production safety.
+- Strings and dates must be enclosed in single quotes('...') in the INSERT statements.
+- If a record contains problematic data that would cause an SQL syntax error, skip generating an INSERT for that record instead of modifying it.
+- Do NOT include any explanation or extra text.
+- All output must be valid JSON.
+`,
     });
 
     return { obj: result.object, isTableExist: false };
@@ -572,6 +563,7 @@ export const callTheActionsInTransations = async (fileContent: string) => {
     await insertDataTable(finalObject.query as string);
     await sql.query("COMMIT")
   } catch (error) {
+    console.log("error in transaction", error);
     await sql.query("ROLLBACK")
     if (RetryError.isInstance(error) || APICallError.isInstance(error)) {
       throw new Error(error.message)
@@ -590,19 +582,36 @@ export const finalCheck = async (object: string) => {
       system: "You are the postgres expert",
       schema: sqlSchema,
       prompt: `
-      ${object}
-      
-      The object of createStatement,query,and tablename
-      This is object with createStatement,query,and .
-      1. check all the insert statements are correct
-      2. if the any insert statements has some mistakes than must fix or either remove it
-    3. it must be correct for inserting data in the postgres database 
-    4. table name and the output is same schema as this object 
-    `
+${object}
+
+You will receive an object containing createStatement, query, and tableName.
+Your tasks:
+1. Check all the INSERT statements for correctness.
+2. If any INSERT statement has mistakes, fix it or remove it.
+3. Ensure all statements are valid for inserting data into a Postgres database.
+4. The output must use the same table name and schema as the input object.
+
+**Important:**
+- Do NOT use backticks (\`) anywhere in the output.
+- Use double quotes (") for identifiers if quoting is needed, otherwise leave unquoted.
+- All output must be valid JSON.
+- Do NOT include any explanation or extra text.
+
+**Example output:**
+{
+  "schema": {
+    "tableName": "my_table",
+    "createStatement": "CREATE TABLE my_table (id INT, name VARCHAR(100))"
+  },
+  "query": "INSERT INTO my_table (id, name) VALUES (1, 'Alice');INSERT INTO my_table (id, name) VALUES (2, 'Bob');"
+}
+`
     })
+
     return { finalObject: result.object }
 
   } catch (error) {
+    console.log("error in final check", error);
     if (RetryError.isInstance(error) || APICallError.isInstance(error)) {
       throw new Error(error.message)
 
