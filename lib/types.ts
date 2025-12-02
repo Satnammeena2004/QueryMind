@@ -18,6 +18,29 @@ export const explainQuerySchema = z.object({
 })
 
 
+// Define the return types
+export interface SchemaResult {
+  obj: {
+    schema: {
+      tableName: string;
+      createStatement: string;
+    };
+    query: string;
+  };
+  isTableExist: boolean;
+}
+
+export interface FinalCheckResult {
+  finalObject: {
+    schema: {
+      tableName: string;
+      createStatement: string;
+    };
+    query: string;
+  };
+}
+
+
 export const configSchema = z
   .object({
     description: z

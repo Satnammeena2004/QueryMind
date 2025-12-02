@@ -1,11 +1,8 @@
 import Container from "@/components/Container";
 import Section from "@/components/Section";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { auth } from "../auth";
 import { sql } from "@vercel/postgres";
-import SideBarLinks from "../components/SideBarLinks";
-import { LayoutDashboard } from "lucide-react";
 import Sidebar from "../components/SIdeBar";
 import { redirect } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";

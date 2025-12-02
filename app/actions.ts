@@ -1,21 +1,23 @@
 "use server";
 import { RetryError, APICallError } from "ai"
-import { sql } from "@vercel/postgres";
-import { configSchema, explainQuerySchema, Result } from "@/lib/types";
+import { configSchema, explainQuerySchema, FinalCheckResult, Result, SchemaResult } from "@/lib/types";
 import { generateObject, generateText } from "ai";
-import { string, z } from "zod";
+import { z } from "zod";
 import { google } from "@ai-sdk/google";
 import path from "path";
 import fs from "fs";
 import csv from "csv-parser";
-import { ExampleAnalyseAdvancedDataSystemPropmt } from "@/lib/helper";
 import { writeFile } from "fs/promises";
-import { cwd } from "process";
 import { auth } from "./auth";
 import { revalidatePath } from "next/cache";
+import { sql, VercelPoolClient } from "@vercel/postgres";
+
+
+
+
 
 // take the formdat and gave the schema of the data
-
+const GOOGLE_GEMINI_MODEL = process.env.GOOGLE_GEMINI_MODEL || "gemini-2.0-flash";
 function customisedQuery(schema: string, tableName: string) {
   return `You are a SQL (Postgres) and data visualization expert. Your job is to help the user write a SQL query to retrieve the data they need. The table schema will be provided by the user.
 the name of table is ${tableName}. 
@@ -173,7 +175,7 @@ export const generateSimpleEnglishQuery = async (
   try {
     const result = await generateObject({
       //@ts-ignore
-      model: google("gemini-1.5-flash"),
+      model: google(GOOGLE_GEMINI_MODEL),
       prompt: sampleEnglishQuery(schema, t_name),
       schema: z.object({
         queries: z.array(z.object({ desktop: z.string(), mobile: z.string() })),
@@ -189,7 +191,7 @@ export const generateQuery = async (input: string) => {
   try {
     const result = await generateObject({
       //@ts-ignore
-      model: google("gemini-1.5-flash"),
+      model: google(GOOGLE_GEMINI_MODEL),
       system: QUERY_GENERATAION_SYSTEM_PROMPT,
       prompt: `Generate the query necessary to retrieve the data the user wants: ${input}`,
       schema: z.object({
@@ -205,22 +207,50 @@ export const generateQuery = async (input: string) => {
 export const generateCustomQuery = async (
   tableName: string,
   schema: string,
-  input: string
+  input: string,
+  retryCount = 0
 ) => {
+  const MAX_RETRIES = 1;
   try {
     const result = await generateObject({
       //@ts-ignore
-      model: google("gemini-1.5-flash"),
+      model: google(GOOGLE_GEMINI_MODEL),
       system: customisedQuery(schema, tableName),
-      prompt: `Generate the query necessary to retrieve the data the user wants: ${input}`,
+      prompt: `
+Table: ${tableName}
+User Request: ${input}
+
+Generate a SELECT query that:
+1. Returns data suitable for visualization (at least 2 columns)
+2. Uses proper PostgreSQL syntax
+3. Includes appropriate filtering and aggregation
+4. Is optimized for performance
+
+Requirements:
+- Only SELECT statements allowed
+- Use ILIKE for case-insensitive string matching
+- Group by appropriate columns for aggregation
+- Return quantitative data suitable for charts
+`,
       schema: z.object({
         query: z.string(),
+        explanation: z.string().optional()
       }),
     });
-    return result.object.query;
+    const query = result.object.query.trim();
+    if (!query.toLowerCase().startsWith('select')) {
+      throw new Error("Generated query is not a SELECT statement");
+    }
+
+    return query;
   } catch (error) {
-    console.error("error", error);
-    throw new Error("Failed to generate query");
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying query generation (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return generateCustomQuery(tableName, schema, input, retryCount + 1);
+    }
+
+    // handleLLMError(error, "generateCustomQuery");
   }
 };
 
@@ -228,7 +258,7 @@ export const explainQuery = async (input: string, sqlQuery: string) => {
   try {
     const result = await generateObject({
       //@ts-ignore
-      model: google("gemini-1.5-flash"),
+      model: google(GOOGLE_GEMINI_MODEL),
       system: EXPLAIN_QUERY_SYSTEM_PROMPT,
       schema: explainQuerySchema,
       //@ts-ignore
@@ -241,7 +271,7 @@ export const explainQuery = async (input: string, sqlQuery: string) => {
       Generated SQL Query:
       ${sqlQuery}`,
     });
-    console.log("result: " + result);
+    // console.log("result: " + result);
     return result.object;
   } catch (error) {
     console.error("error", error);
@@ -268,7 +298,7 @@ export const readFileData = async () => {
       .on("end", resolve)
       .on("error", reject);
   });
-  console.log("result ", result);
+  // console.log("result ", result);
   return result;
 };
 
@@ -305,7 +335,7 @@ export const generateChartConfig = async (
   try {
     const { object: config } = await generateObject({
       //@ts-ignore
-      model: google("gemini-1.5-flash"),
+      model: google(GOOGLE_GEMINI_MODEL),
       system: "You are a data visualization expert.",
       prompt: `Given the following data from a SQL query result, generate the chart config that best visualises the data and answers the users query.
     For multiple groups use multi-lines.
@@ -416,35 +446,44 @@ export async function customRevalidatePath(path: string) {
 
 export async function createTableInDatabase(
   query: string,
-  tableName?: string,
-  oldTableName?: string
+  client: VercelPoolClient
 ) {
   try {
-    if (oldTableName && tableName) {
-      const queryWithNewTableName = query.replace(oldTableName, tableName);
-      await sql.query(
-        queryWithNewTableName.replaceAll("`", "").replaceAll('"', "")
-      );
-    } else {
-      await sql.query(query.replaceAll("`", "").replaceAll('"', ""));
-    }
+    // if (oldTableName && tableName) {
+    //   const queryWithNewTableName = query.replace(oldTableName, tableName);
+    //   await sql.query(
+    //     queryWithNewTableName.replaceAll("`", "").replaceAll('"', "")
+    //   );
+    // } else {
+    // console.log("create table query:", query);
+    const { command, fields, rowCount, rows } = await client.query(query)
+    // console.log("table created successfully", { command, fields, rowCount, rows });
+    // }
   } catch (error) {
     console.log("error in create table", error);
-    throw new Error("schema and data mismatch")
+    throw new Error((error as Error).message || "failed to create table")
   }
 }
 
-export async function insertDataInOwnedTable(t_name: string) {
-  const session = await auth();
-  console.log("session insertDataInOwnedTable", session);
-  const query = `INSERT INTO owned_table (name,"userId") VALUES($1,$2)`;
-  await sql.query(query, [t_name, session?.user?.userId]);
+export async function insertDataInOwnedTable(t_name: string, client: VercelPoolClient) {
+  try {
+
+    const session = await auth();
+    // console.log("session insertDataInOwnedTable", session);
+    const query = `INSERT INTO owned_table (name,"userId") VALUES($1,$2)`;
+    await client.query(query, [t_name, session?.user?.userId]);
+  } catch (error) {
+    console.log("ERROR WHILE INSERTING IN OWNED TABLE", (error as Error).message);
+    throw new Error((error as Error).message || "failed to insert data in owned table")
+  }
+
+
 }
 
-export async function insertDataTable(insertQuery: string) {
+export async function insertDataTable(insertQuery: string, client: VercelPoolClient) {
   try {
-    // Remove stray curly braces and whitespace
     const cleanedQuery = insertQuery.replace(/[{}]/g, "").trim();
+
     const splittedArray = cleanedQuery
       .replaceAll("`", "")
       .replaceAll('"', "")
@@ -452,12 +491,18 @@ export async function insertDataTable(insertQuery: string) {
     const filteredQueries = splittedArray
       .map((q) => q.trim())
       .filter((q) => q !== "");
-    console.log("filtered", filteredQueries);
+    // console.log("filtered", filteredQueries);
 
-    await Promise.all(filteredQueries.map((query) => sql.query(query)));
+    // await Promise.all(filteredQueries.map((query) => sql.query(query)));
+    for (const query of filteredQueries) {
+      if (query) {
+        // console.log("Executing query:", query);
+        await client.query(query);
+      }
+    }
   } catch (error) {
-    console.log("error in insreting", error);
-    throw new Error("Your data is suitable for schema")
+    console.log("ERROR OCCURS WHILE INSERTING DATA AFTER CREATING THE TABLE FROM readSchemaAndGenerateQuery():", (error as Error).message);
+    throw new Error((error as Error).message || "ERROR OCCURS WHILE INSERTING DATA AFTER CREATING THE TABLE")
   }
 }
 
@@ -471,14 +516,20 @@ export async function isTableAlreadyExist(tableName: string) {
 
 
 
-export const readFileAndGetSchema = async (fileContent: string | null) => {
+export const readFileAndGetSchema = async (fileContent: string | null, retry = false, error = "", retryCount = 1): Promise<SchemaResult> => {
+  let MAX_RETRIES = 2;
   try {
+    let attatchedError = "";
+    if (retry) {
+      attatchedError = ` The previous attempt failed due to this error: ${error}. Please ensure the generated schema and INSERT statements are accurate and compatible with PostgreSQL.`;
+    }
     const t = "x" + crypto.randomUUID().split("-")[0];
     const result = await generateObject({
       //@ts-ignore
-      model: google("gemini-1.5-flash"),
+      model: google(GOOGLE_GEMINI_MODEL),
       schema: sqlSchema,
       prompt: `
+    ${attatchedError}  
 You are an assistant that analyzes JSON sample data and generates a Postgres schema with individual INSERT statements.
 Sample Data: ${fileContent}
 
@@ -486,7 +537,7 @@ Your tasks:
 1. Generate a single table schema, flattening nested fields into columns using underscore notation (e.g., address_city).
 2. If data contains arrays, store them as comma-separated strings in a VARCHAR column and insert them as such in the INSERT statements.
 3. If data contains nested objects, create separate columns for each nested field using underscore notation.
-4. Choose an appropriate table name based on the data content unless a table name ${t} is provided, in which case use that name exactly.
+4. the table name is ${t},  use that name exactly.
 5. Generate appropriate column types (VARCHAR, INT, DECIMAL, DATE) based on the data.
 6. Use DECIMAL for monetary values.
 7. Only infer DATE type if all values in the column follow an unambiguous YYYY-MM-DD format; otherwise use VARCHAR.
@@ -497,7 +548,7 @@ Your tasks:
 11. Do NOT use backticks (\`) anywhere in the output.
 12. Generate one INSERT statement per data item (no batch inserts).
 13. Avoid line breaks in both createStatement and query strings — output them as single lines.
-14. For each VARCHAR column, set the length to the longest string found in the data for that column, rounded up to the nearest 10 (e.g., if the longest string is 57 characters, use VARCHAR(60)).
+14. For each VARCHAR column, set the length to the longest string found in the data for that column and minimum length of string is VARCHAR(500) (eg. VARCHAR(500)) .
 15. Return the result in exact JSON format below, including the optional indexes field (empty if none are needed):
 
 {
@@ -520,12 +571,16 @@ Important:
 
     return { obj: result.object, isTableExist: false };
   } catch (error) {
-    console.log("error in LLM", error);
+    console.log("ERROR IN LLM", (error as Error).message);
     if (RetryError.isInstance(error) || APICallError.isInstance(error)) {
       throw new Error(error.message)
-
     }
-    throw new Error("Can't generate schema from data")
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying readFileAndGetSchema (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
+      return readFileAndGetSchema(fileContent, true, (error as Error).message, retryCount + 1);
+    }
+    throw new Error((error as Error).message);
   }
 };
 
@@ -554,70 +609,114 @@ export const checkCredits = async () => {
 
 
 export const callTheActionsInTransations = async (fileContent: string) => {
+  const client = await sql.connect();
+  let transactionStarted = false;
   try {
-    await sql.query("BEGIN")
+    await client.query("BEGIN")
+    transactionStarted = true;
     const { obj } = await readFileAndGetSchema(fileContent as string);
+    // console.log("readFIleand Shema :", obj);
     const { finalObject } = await finalCheck(JSON.stringify(obj))
-    await createTableInDatabase(finalObject.schema.createStatement);
-    await insertDataInOwnedTable(finalObject.schema.tableName);
-    await insertDataTable(finalObject.query as string);
-    await sql.query("COMMIT")
-  } catch (error) {
-    console.log("error in transaction", error);
-    await sql.query("ROLLBACK")
-    if (RetryError.isInstance(error) || APICallError.isInstance(error)) {
-      throw new Error(error.message)
+    // console.log("finalObject.schema.createStatement:", finalObject.schema.createStatement);
+    // console.log("finalObject.schema:", finalObject.schema);
+    await createTableInDatabase(finalObject.schema.createStatement, client);
+    await insertDataInOwnedTable(finalObject.schema.tableName, client);
+    await insertDataTable(finalObject.query as string, client);
+    await client.query("COMMIT")
+    return {
+      success: true,
+      tableName: finalObject.schema.tableName,
+      message: "Table created successfully"
+    };
 
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Rollback failed:", rollbackError);
+      }
     }
-    throw new Error("Something Missed !")
+
+    console.error("Transaction error:", error);
+
+    // if (error instanceof LLMError) {
+    //   throw error;
+    // }
+
+    if (RetryError.isInstance(error) || APICallError.isInstance(error)) {
+      throw new Error(`AI service error: ${error.message}`);
+    }
+
+    throw new Error("Failed to create table and insert data");
   }
 }
 
 
-export const finalCheck = async (object: string) => {
+export const finalCheck = async (object: string, retryCount = 0): Promise<FinalCheckResult | undefined> => {
+  const MAX_RETRIES = 1;
+  // console.log("final check called,object:", object);
   try {
     const result = await generateObject({
       //@ts-ignore
-      model: google("gemini-1.5-flash"),
+      model: google(GOOGLE_GEMINI_MODEL),
       system: "You are the postgres expert",
       schema: sqlSchema,
       prompt: `
-${object}
+Input Object: ${object}
 
-You will receive an object containing createStatement, query, and tableName.
-Your tasks:
-1. Check all the INSERT statements for correctness.
-2. If any INSERT statement has mistakes, fix it or remove it.
-3. Ensure all statements are valid for inserting data into a Postgres database.
-4. The output must use the same table name and schema as the input object.
+VALIDATION TASKS:
+1. Verify all INSERT statements are syntactically correct for PostgreSQL
+2. Ensure data types match between CREATE and INSERT statements
+3. Validate string escaping (use single quotes only)
+4. Check for SQL injection patterns and remove them
+5. Ensure all column names are consistent
 
-**Important:**
-- Do NOT use backticks (\`) anywhere in the output.
-- Use double quotes (") for identifiers if quoting is needed, otherwise leave unquoted.
-- All output must be valid JSON.
-- Do NOT include any explanation or extra text.
+CRITICAL RULES:
+- NO backticks anywhere
+- Use single quotes for strings: 'value'
+- Use double quotes for identifiers only if needed: "columnName"
+- Remove any curly braces from SQL statements
+- Ensure VARCHAR lengths can accommodate all data
 
-**Example output:**
+Return ONLY valid JSON:
 {
   "schema": {
-    "tableName": "my_table",
-    "createStatement": "CREATE TABLE my_table (id INT, name VARCHAR(100))"
+    "tableName": "exact_same_name",
+    "createStatement": "valid PostgreSQL CREATE statement"
   },
-  "query": "INSERT INTO my_table (id, name) VALUES (1, 'Alice');INSERT INTO my_table (id, name) VALUES (2, 'Bob');"
+  "query": "concatenated INSERT statements separated by semicolons"
 }
 `
     })
 
-    return { finalObject: result.object }
+    const finalObject = result.object;
+
+    if (finalObject.query) {
+      finalObject.query = finalObject.query
+        .replace(/[{}]/g, '') // Remove curly braces
+        .replace(/`/g, '') // Remove backticks
+        .replace(/\n/g, ' ') // Remove newlines
+        .trim();
+    }
+
+    if (finalObject.schema?.createStatement) {
+      finalObject.schema.createStatement = finalObject.schema.createStatement
+        .replace(/`/g, '')
+        .replace(/\n/g, ' ')
+        .trim();
+    }
+
+    return { finalObject };
 
   } catch (error) {
-    console.log("error in final check", error);
-    if (RetryError.isInstance(error) || APICallError.isInstance(error)) {
-      throw new Error(error.message)
-
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying final check (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+      return finalCheck(object, retryCount + 1);
     }
-    throw new Error("AI can't generated suitable schema ")
 
+    // handleLLMError(error, "finalCheck");
   }
 }
 
